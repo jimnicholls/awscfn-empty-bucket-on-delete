@@ -1,0 +1,10 @@
+# JetBrains Fleet
+.fleet/*
+
+# SAM
+.aws-sam/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
