@@ -1,10 +1,41 @@
 # -*- coding: utf-8 -*-
 import logging
+import os
 import requests
 import typing
 
 
-logger = logging.getLogger('empty_bucket_on_delete.cfn_response')
+__all__ = (
+    'CfnCustomResource',
+    'CfnResponse',
+)
+
+
+logger = logging.getLogger(__name__)
+
+
+class CfnCustomResource:
+
+    CREATE = 'Create'
+    DELETE = 'Delete'
+    UPDATE = 'Update'
+
+    def __init__(self, module_name, *, default_log_level='INFO'):
+        self.handlers = {}
+        logging.getLogger(module_name).setLevel(os.environ.get('LOG_LEVEL') or default_log_level)
+
+    def __call__(self, event, context):
+        with CfnResponse(event, context) as cfn_response:
+            request_type = event.get('RequestType')
+            handler_fn = self.handlers.get(request_type)
+            if handler_fn:
+                data = handler_fn(event, context, cfn_response)
+                cfn_response.send_success(data=data)
+
+    def on(self, request_type):
+        def register(fn):
+            self.handlers[request_type] = fn
+        return register
 
 
 class CfnResponse:
@@ -12,18 +43,20 @@ class CfnResponse:
     def __init__(self, event, context, *, physical_resource_id: typing.Optional[str] = None, no_echo: bool = False, data: typing.Optional[dict] = None):
         self.event = event
         self.context = context
-        self.physical_resource_id: typing.Optional[str] = physical_resource_id
+        self.physical_resource_id: str = physical_resource_id or self.logical_resource_id
         self.no_echo: bool = no_echo
         self.data: dict = dict() if data is None else data
+        self.sent = False
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None and exc_val is None:
-            self.send_success()
-        else:
-            self.send_failed(f'{exc_type.__name__}: {exc_val}')
+        if not self.sent:
+            if exc_type is None and exc_val is None:
+                self.send_success()
+            else:
+                self.send_failed(f'{exc_type.__name__}: {exc_val}')
 
     @property
     def logical_resource_id(self):
@@ -66,3 +99,4 @@ class CfnResponse:
         logger.debug('PUT %s: %r', response_url, response_object)
         if response_url != 'http://pre-signed-S3-url-for-response':
             requests.put(response_url, json=response_object)
+        self.sent = True

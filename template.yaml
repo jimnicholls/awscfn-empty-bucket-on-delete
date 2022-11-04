@@ -3,30 +3,6 @@ Transform: AWS::Serverless-2016-10-31
 
 Resources:
 
-  EmptyBucketOnDelete:
-    Type: AWS::Serverless::Function
-    Properties:
-      Architectures: [ arm64 ]
-      Runtime: python3.9
-      Timeout: 30
-      CodeUri: empty_bucket_on_delete/
-      Handler: lambda_handler.handler
-      Environment:
-        Variables:
-          DEFAULT_LOG_LEVEL: DEBUG
-      Policies:
-      - Version: '2012-10-17'
-        Statement:
-        - Effect: Allow
-          Action:
-          - 's3:DeleteObject'
-          - 's3:DeleteObjectVersion'
-          - 's3:GetBucketVersioning'
-          - 's3:ListBucket'
-          - 's3:ListBucketVersions'
-          Resource:
-          - !Sub 'arn:${AWS::Partition}:s3:::${AWS::StackName}-*'
-
   ExampleBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -46,8 +22,29 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
-  ExampleBucketBucketEmptyOnDelete:
+  EmptyExampleBucketOnDelete:
     Type: Custom::EmptyBucketOnDelete
     Properties:
       ServiceToken: !GetAtt EmptyBucketOnDelete.Arn
       BucketName: !Ref ExampleBucket
+
+  EmptyBucketOnDelete:
+    Type: AWS::Serverless::Function
+    Properties:
+      Architectures: [ arm64 ]
+      CodeUri: src/
+      Handler: empty_bucket_on_delete.custom_resource
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+      Policies:
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - 's3:DeleteObjectVersion'
+          - 's3:ListBucketVersions'
+          Resource:
+          - !Sub 'arn:${AWS::Partition}:s3:::${AWS::StackName}-*'
