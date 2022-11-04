@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+
+  EmptyBucketOnDelete:
+    Type: AWS::Serverless::Function
+    Properties:
+      Architectures: [ arm64 ]
+      Runtime: python3.9
+      Timeout: 30
+      CodeUri: empty_bucket_on_delete/
+      Handler: lambda_handler.handler
+      Environment:
+        Variables:
+          DEFAULT_LOG_LEVEL: DEBUG
+      Policies:
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - 's3:DeleteObject'
+          - 's3:DeleteObjectVersion'
+          - 's3:GetBucketVersioning'
+          - 's3:ListBucket'
+          - 's3:ListBucketVersions'
+          Resource:
+          - !Sub 'arn:${AWS::Partition}:s3:::${AWS::StackName}-*'
+
+  ExampleBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  ExampleBucketBucketEmptyOnDelete:
+    Type: Custom::EmptyBucketOnDelete
+    Properties:
+      ServiceToken: !GetAtt EmptyBucketOnDelete.Arn
+      BucketName: !Ref ExampleBucket
